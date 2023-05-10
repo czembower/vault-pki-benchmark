@@ -97,15 +97,12 @@ func (auth *authObject) jwtLogin() (string, error) {
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		if debug {
-			fmt.Printf("%d\n", resp.StatusCode)
-		}
 		atomic.AddInt32(authFail, 1)
 		return "", err
 	}
 
 	if debug {
-		fmt.Printf("%s\n", resp.Body)
+		fmt.Printf("%d\n", resp.StatusCode)
 	}
 
 	var result vaultLogin
