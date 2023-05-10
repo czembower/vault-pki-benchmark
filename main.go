@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -65,9 +64,7 @@ type certConfig struct {
 	Insecure   bool   `json:"insecure"`
 }
 
-func (auth *authObject) jwtLogin() (string, error) {
-
-	debug, _ := strconv.ParseBool(os.Getenv("DEBUG"))
+func (auth *authObject) jwtLogin(debug bool) (string, error) {
 
 	payload := map[string]string{
 		"role": auth.Role,
@@ -120,9 +117,7 @@ func (auth *authObject) jwtLogin() (string, error) {
 	return result.Auth.ClientToken, nil
 }
 
-func (cert *certConfig) certRequest(token string, addr string, namespace string) map[string]interface{} {
-
-	debug, _ := strconv.ParseBool(os.Getenv("DEBUG"))
+func (cert *certConfig) certRequest(token string, addr string, namespace string, debug bool) map[string]interface{} {
 
 	config := vault.DefaultConfig()
 	config.Address = addr
@@ -163,15 +158,15 @@ func (cert *certConfig) certRequest(token string, addr string, namespace string)
 	return resp.Data
 }
 
-func testRun(vaultAuth authObject, vaultCert certConfig) {
+func testRun(vaultAuth authObject, vaultCert certConfig, debug bool) {
 	fmt.Printf("Running in test mode! Set -notest to disable\n")
-	token, err := vaultAuth.jwtLogin()
+	token, err := vaultAuth.jwtLogin(debug)
 	if token == "" || err != nil {
 		log.Fatalf("error authenticating with Vault -- token is empty!")
 	}
 
 	fmt.Printf("Token: %s\n", token)
-	data := vaultCert.certRequest(token, vaultAuth.Addr, vaultAuth.Namespace)
+	data := vaultCert.certRequest(token, vaultAuth.Addr, vaultAuth.Namespace, debug)
 	cert := data["certificate"].(string)
 	block, _ := pem.Decode([]byte(cert))
 	if block == nil {
@@ -205,6 +200,7 @@ func main() {
 		strictTimeout  bool
 		notest         bool
 		insecureTls    bool
+		debug          bool
 		wg             sync.WaitGroup
 		vaultAuth      authObject
 		vaultCert      certConfig
@@ -227,6 +223,7 @@ func main() {
 	flag.BoolVar(&strictTimeout, "strictTimeout", false, "Set to drop all open requests at timeout without waiting for the response")
 	flag.BoolVar(&notest, "notest", false, "If unset, run once and return the token and certificate for verification")
 	flag.BoolVar(&insecureTls, "insecureTls", false, "If set, certificate validation will be skipped")
+	flag.BoolVar(&debug, "debug", false, "If set, verbose output will be enabled")
 	flag.Parse()
 
 	required := []string{"vaultAddr", "vaultNamespace", "authPath", "authRole", "jwtToken", "enginePath", "engineRole", "certDomain"}
@@ -258,14 +255,14 @@ func main() {
 	}
 
 	// Get initial token
-	initialToken, err := vaultAuth.jwtLogin()
+	initialToken, err := vaultAuth.jwtLogin(debug)
 	if err != nil {
 		log.Fatalf("error authenticating with Vault: %v", err)
 	}
 	fmt.Printf("Threads: %d\nDuration: %d seconds\n", threads, seconds)
 
 	if !notest {
-		testRun(vaultAuth, vaultCert)
+		testRun(vaultAuth, vaultCert, debug)
 	}
 
 	duration := time.Duration(seconds) * time.Second
@@ -275,15 +272,15 @@ func main() {
 	defer ticker.Stop()
 
 	// worker function
-	do := func(wg *sync.WaitGroup, initialToken string, reuseToken bool) {
+	do := func(wg *sync.WaitGroup, initialToken string, reuseToken bool, debug bool) {
 		token := initialToken
 		wg.Add(1)
 		defer wg.Done()
 		if !reuseToken {
-			token, _ = vaultAuth.jwtLogin()
+			token, _ = vaultAuth.jwtLogin(debug)
 		}
 		if token != "" {
-			vaultCert.certRequest(token, vaultAuth.Addr, vaultAuth.Namespace)
+			vaultCert.certRequest(token, vaultAuth.Addr, vaultAuth.Namespace, debug)
 		}
 	}
 
@@ -299,7 +296,7 @@ loop:
 		default:
 			guard <- struct{}{}
 			go func(n int) {
-				do(&wg, initialToken, reuseToken)
+				do(&wg, initialToken, reuseToken, debug)
 				<-guard
 			}(i)
 		}
