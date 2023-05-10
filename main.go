@@ -106,7 +106,7 @@ func (auth *authObject) jwtLogin(debug bool) (string, error) {
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		if debug {
-			fmt.Printf("%v\n", err)
+			fmt.Printf("error unmarshalling vaultLogin response: %v\n", err)
 		}
 		atomic.AddInt32(authFail, 1)
 		return "", err
@@ -147,7 +147,7 @@ func (cert *certConfig) certRequest(token string, addr string, namespace string,
 	resp, err := client.Logical().Write(path, data)
 	if err != nil {
 		if debug {
-			fmt.Printf("%s\n", resp.Data["http_status_code"])
+			fmt.Printf("error making certificate request: %v\n", resp.Data["http_status_code"])
 		}
 		atomic.AddInt32(certFail, 1)
 		return nil
