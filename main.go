@@ -155,7 +155,7 @@ func (cert *certConfig) certRequest(token string, addr string, namespace string)
 	resp, err := client.Logical().Write(path, data)
 	if err != nil {
 		if debug {
-			fmt.Printf("%v\n", err)
+			fmt.Printf("%s\n", resp.Warnings)
 		}
 		atomic.AddInt32(certFail, 1)
 		return nil
