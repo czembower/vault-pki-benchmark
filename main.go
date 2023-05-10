@@ -98,7 +98,7 @@ func (auth *authObject) jwtLogin(debug bool) (string, error) {
 		return "", err
 	}
 
-	if debug {
+	if debug && resp.StatusCode != 200 {
 		fmt.Printf("%d\n", resp.StatusCode)
 	}
 
@@ -147,7 +147,7 @@ func (cert *certConfig) certRequest(token string, addr string, namespace string,
 	resp, err := client.Logical().Write(path, data)
 	if err != nil {
 		if debug {
-			fmt.Printf("%s\n", resp.Warnings)
+			fmt.Printf("%s\n", resp.Data["http_status_code"])
 		}
 		atomic.AddInt32(certFail, 1)
 		return nil
